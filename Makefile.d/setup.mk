@@ -1,6 +1,6 @@
 .PHONY:=setup
 
-setup: clean
+setup:
 	@echo "Setup environment."
 	echo "OPSYS: $(OPSYS)"
 	@command -v packer || (\

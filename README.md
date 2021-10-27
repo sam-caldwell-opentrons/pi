@@ -1,11 +1,13 @@
- # Packer Pi
- ============
+ # Raspberry-Probe
+ =================
 
 # Purpose
-To automate image creation and management for Raspberry Pi.
+Use `packer` to automate the process for creating Raspberry Pi images,
+then use that automation to produce raspberry-pi based probe devices.
 
 # Usage
-* This project will build images using Github Actions and the images will be sotred in releases.
+* This project will build images using Github Actions and the images will 
+  be stored in releases.
 * Changes are build per branch.
 * Manual images can be build using `make images`.
 
