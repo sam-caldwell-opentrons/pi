@@ -1,0 +1,6 @@
+.idea/
+build/
+.venv/
+*.pyc
+packer_cache/
+.DS_Store
