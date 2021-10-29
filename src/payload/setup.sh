@@ -75,14 +75,28 @@ update_system(){
   sed -i 's/^#deb-src/deb-src/' /etc/apt/sources.list.d/raspi.list
   sed -i 's/^#deb-src/deb-src/' /etc/apt/sources.list
   apt-get update -y --fix-missing --allow-releaseinfo-change
-  apt-get upgrade -y
+  #apt-get upgrade -y
   success "update_system() done"
 }
+
 clean_up(){
   message "clean-up after ourselves."
   umount /var/cache/apt
   sed -i 's/tmpfs \/var\/cache\/apt/#tmpfs \/var\/cache\/apt/' /etc/fstab
   success "clean_up() done"
+}
+
+install_datadog(){
+  message "Install the datadog agent"
+  [ "__bad__${DD_API_KEY}" == "__bad__" ] && error "Missing DD_API_KEY"
+  apt-get install --no-install-recommends -y sysstat
+  /usr/local/probe/setup_agent.sh || error "Datadog agent installation failed."
+  success "datadog agent installed."
+  message "configure datadog"
+  #ToDo: add datadog configuration
+  message "install datadog agent to rc.local"
+  echo "nohup sh /root/.datadog-agent/bin/agent &" >> /etc/rc.local
+  success "datadog agent added to rc.local."
 }
 
 main(){
@@ -92,7 +106,7 @@ main(){
   setup_ram_disks
   fix_time
   remove_unwanted_packages
-  #update_system
+  update_system
 	#ToDo: install other things
 	sync
 	success "complete the configuration process"

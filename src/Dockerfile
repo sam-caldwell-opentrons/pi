@@ -5,10 +5,11 @@
 # with QEMU for building Raspberry Pi images using QEMU and
 # hashicorp packer.
 #
+ARG DD_API_KEY
 ARG GO_VERSION=1.17.2
 
-#ToDo: Move this Repo to opentrons.
-ARG PACKER_PLUGIN_REPO="https://github.com/sam-caldwell-opentrons/packer-builder-arm.git"
+# Datadog agent script url
+ARG DD_AG_URL=https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/setup_agent.sh
 ARG APT_ARGS="-y --no-install-recommends"
 #
 # Create a base image 
@@ -31,6 +32,7 @@ RUN unminimize
 RUN apt-get install ${APT_ARGS} ca-certificates
 RUN apt-get install ${APT_ARGS} apt-transport-https
 RUN apt-get install ${APT_ARGS} git
+RUN apt-get install ${APT_ARGS} curl
 RUN apt-get install ${APT_ARGS} wget
 RUN apt-get install ${APT_ARGS} dosfstools
 RUN apt-get install ${APT_ARGS} gdisk
@@ -54,10 +56,13 @@ RUN apt-get install ${APT_ARGS} libarchive-tools
 
 
 FROM base_image AS raspbian_base
+ARG DD_AG_URL
 WORKDIR /build
 RUN wget https://downloads.raspberrypi.org/raspbian_lite_latest && \
     unzip -p raspbian_lite_latest > base.img
     #ToDo: Verify hash
+RUN curl --fail "${DD_AG_URL}" > datadog_agent_setup.sh
+RUN chmod +x datadog_agent_setup.sh
 
 
 FROM base_image AS builder_base
@@ -98,14 +103,19 @@ RUN case "$(uname -m)" in \
 #
 FROM base_image AS image_builder
 ARG APT_ARGS
+ARG DD_API_KEY
 ENV PACKER=/bin/packer
+ENV DD_API_KEY=${DD_API_KEY}
 ENV DONT_SETUP_QEMU=1
 RUN rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 
+
 RUN mkdir -p /build/scripts/
 COPY --from=raspbian_base /build/base.img /build/
+COPY --from=raspbian_base /build/datadog_agent_setup.sh /build/payload/
 COPY src/ /build/
+COPY ./VERSION.txt /build/
 
 # This is the directory where we will write the output artifact.
 RUN mkdir /output

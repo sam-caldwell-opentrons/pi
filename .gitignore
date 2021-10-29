@@ -4,3 +4,4 @@ build/
 *.pyc
 packer_cache/
 .DS_Store
+VERSION.txt

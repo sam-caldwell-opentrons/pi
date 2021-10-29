@@ -1,5 +1,6 @@
 .PHONY:=builder
-builder:
+
+builder: version
 	@echo "Make build container"
 	@rm -rf build
 	@mkdir -p build

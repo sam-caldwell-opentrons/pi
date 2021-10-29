@@ -33,6 +33,7 @@ install_payload(){
   echo "install payload scripts to raspberrypi image"
   mkdir "${PAYLOAD_DIR}"
   cp -rfvp /build/payload/* "${PAYLOAD_DIR}/"
+  echo "export PROBE_VERSION=$(cat /build/VERSION.txt)" > /mnt/etc/profile.d/version.sh
   echo "Payload is installed to '${PAYLOAD_DIR}'"
 }
 
@@ -75,7 +76,7 @@ reset_loop_devices(){
 unmount_everything(){
   message "unmount everything from raspberrypi image."
   sync
-  umount /mnt/{dev/pts,dev,sys,proc,boot,tmp,var/tmp} || {
+  umount /mnt/{dev/pts,dev,sys,proc,boot,tmp,var/tmp,} || {
     error "unmount failed"
   }
   success "everything unmounted successfully."
@@ -83,7 +84,7 @@ unmount_everything(){
 
 pad_image_file(){
   message "Pad the image file."
-  dd if=/dev/zero bs=1M count=16384 >> base.img || error "padding failed."
+  dd if=/dev/zero bs=1M count=8192 >> base.img || error "padding failed."
   fdisk -l base.img | tail -n2
   success "padding complete"
 }
@@ -93,6 +94,12 @@ configure_image(){
   chroot /mnt /bin/bash -c "/usr/local/probe/setup.sh" || \
     error "update_image failed"
   success "image updated/configured."
+}
+
+deliver_artifact(){
+  message "deliver artifact to /output"
+  cp /build/base.img /output/raspberry-probe.img
+  success "successfully delivered artifact to /output"
 }
 
 main(){
@@ -108,6 +115,7 @@ main(){
   enable_ld_preload || error "enable_ld_preload() failed."
   unmount_everything || error "unmount_everything() failed."
   reset_loop_devices || error "reset_loop_devices() failed."
+  deliver_artifact || error "deliver_artifact() failed."
   success "main(): terminating without error"
 }
 
