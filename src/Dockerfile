@@ -6,7 +6,6 @@
 # hashicorp packer.
 #
 ARG GO_VERSION=1.17.2
-ARG PACKER_VERSION=1.7.7
 
 #ToDo: Move this Repo to opentrons.
 ARG PACKER_PLUGIN_REPO="https://github.com/sam-caldwell-opentrons/packer-builder-arm.git"
@@ -27,8 +26,11 @@ RUN truncate -s0 /tmp/preseed.cfg; \
     rm -f /etc/timezone /etc/localtime && \
     apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y tzdata
+    apt-get install -y tzdata && \
+    rm /tmp/preseed.cfg || true \
+RUN unminimize
 RUN apt-get install ${APT_ARGS} ca-certificates
+RUN apt-get install ${APT_ARGS} apt-transport-https
 RUN apt-get install ${APT_ARGS} git
 RUN apt-get install ${APT_ARGS} wget
 RUN apt-get install ${APT_ARGS} dosfstools
@@ -36,6 +38,7 @@ RUN apt-get install ${APT_ARGS} gdisk
 RUN apt-get install ${APT_ARGS} kpartx
 RUN apt-get install ${APT_ARGS} parted
 RUN apt-get install ${APT_ARGS} psmisc
+RUN apt-get install ${APT_ARGS} kmod
 RUN apt-get install ${APT_ARGS} sudo
 RUN apt-get install ${APT_ARGS} unzip
 RUN apt-get install ${APT_ARGS} upx-ucl
@@ -73,42 +76,17 @@ RUN case "$(uname -m)" in \
     echo "GO_URL: ${GO_URL}" && \
     echo "GO_PKG: ${GO_PKG}" && \
     echo "Downloading '${GO_URL}'" && \
-    wget "${GO_URL}"&& \
+    while true; do \
+      echo "download go..." && \
+      wget -T 15 -c "${GO_URL}" && break; \
+      echo -n "sleep before try again...";\
+      for i in $(seq 1 5); do echo -n ".";sleep 1; done;\
+      echo ""; \
+    done && \
     echo "Unpack tar: ${GO_PKG}" && \
     ls -la "${GO_PKG}" && \
     tar -C /usr/local -xzf ${GO_PKG} && \
     go version
-#
-# Download the packer artifact using our base_image.
-# This just increases build speed.
-#
-FROM base_image AS packer_artifact
-ARG PACKER_VERSION
-RUN case "$(uname -m)" in \
-        "aarch64") \
-          ARCH="arm64" \
-          ;; \
-        "*") \
-          ARCH="amd64" \
-          ;; \
-        esac && \
-    echo "ARCH: ${ARCH}" && \
-    wget https://releases.hashicorp.com/packer/${PACKER_VERSION}/packer_${PACKER_VERSION}_linux_${ARCH}.zip \
-         -q \
-         -O /tmp/packer.zip && \
-    unzip /tmp/packer.zip -d /bin && \
-    rm /tmp/packer.zip
-RUN upx-ucl --lzma /bin/packer
-#
-# Use our builder image to build the packer raspberry pi plugin.
-#
-FROM builder_base AS plugin_builder
-ARG PACKER_PLUGIN_REPO
-RUN git clone ${PACKER_PLUGIN_REPO} && \
-    cd packer-builder-arm && \
-    go mod download && \
-    go build -o packer-builder-arm && \
-    upx-ucl --lzma /build/packer-builder-arm/packer-builder-arm
 #
 # Finally, create our image_builder image.
 #
@@ -118,9 +96,8 @@ ENV PACKER=/bin/packer
 ENV DONT_SETUP_QEMU=1
 RUN rm -rf /var/lib/apt/lists/*
 WORKDIR /build
-COPY docker/entrypoint.sh /entrypoint.sh
-COPY --from=packer_artifact /bin/packer /bin/
-COPY --from=plugin_builder /build/packer-builder-arm /bin/
-COPY --from=base_image /usr/bin/ /usr/bin
 
-ENTRYPOINT ["/entrypoint.sh"]
+RUN mkdir -p /build/scripts/
+COPY src/ /build/
+RUN mkdir /output  # This is the directory where we will write the output artifact.
+ENTRYPOINT ["/build/main.sh"]

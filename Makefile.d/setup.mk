@@ -2,13 +2,7 @@
 
 setup:
 	@echo "Setup environment."
-	echo "OPSYS: $(OPSYS)"
-	@command -v packer || (\
-		echo "packer needs to be installed...";\
-		make setup-packer-$(OPSYS);\
-	)
-	@command -v packer --version || {\
-		echo "packer install failed.";\
-		exit 1;\
-	}
-	make setup-packer-plugin
+	@command -v docker || {\
+  		echo "docker must be installed to use this project.";\
+  		echo 42;\
+  	}

@@ -1,6 +1,5 @@
 .PHONY:=images
-
 images:
 	@echo "Make raspberry pi images"
-	@mkdir build &> /dev/null || true
-	@packer build ./src/raspbian.pkr.hcl
+	@docker run --privileged -it plugin-builder:latest
+	#@docker run --privileged -v /dev:/dev -it plugin-builder:latest
