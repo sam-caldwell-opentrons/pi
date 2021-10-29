@@ -98,7 +98,11 @@ configure_image(){
 
 deliver_artifact(){
   message "deliver artifact to /output"
+  ls -lah /build/base.img
+  shasum -a 256 /build/base.img
   cp /build/base.img /output/raspberry-probe.img
+  ls -lah /output/raspberry-probe.img
+  shasum -a 256 /output/raspberry-probe.img
   success "successfully delivered artifact to /output"
 }
 
