@@ -58,7 +58,7 @@ setup_ram_disks(){
 
 remove_unwanted_packages(){
   message "remove unwanted packages (e.g. openssh server, sftp)"
-  apt-get purge openssh-server* openssh-sftp* ssh ssh-import-id xauth xkb* man-db -y
+  apt-get purge man-db -y
   apt-get autoremove -y && apt-get autoclean -y
   success "remove_unwanted_packages() done"
 }
@@ -109,6 +109,7 @@ main(){
   update_system
 	#ToDo: install other things
 	sync
+	uname -a > /kernel.version
 	success "complete the configuration process"
 	exit
 }

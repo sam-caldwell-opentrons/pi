@@ -58,7 +58,7 @@ mount_disks_and_devices(){
   success "device bind complete"
 }
 
-repair_and_resize_disks(){
+repair_and_resize_fs(){
   message "Repair and resize"
   e2fsck -f /dev/mapper/loop0p2 || error "root partition failed repair"
   resize2fs /dev/mapper/loop0p2 || error "root partition failed resize"
@@ -85,14 +85,17 @@ unmount_everything(){
 pad_image_file(){
   message "Pad the image file."
   dd if=/dev/zero bs=1M count=8192 >> base.img || error "padding failed."
+  success "Image file padded...resizing..."
+  qemu-img resize -f raw base.img +6G || error "image resize failed."
   fdisk -l base.img | tail -n2
-  success "padding complete"
+  success "padding and resize complete"
 }
 
 configure_image(){
   message "chroot to raspbian environment and configure things."
   chroot /mnt /bin/bash -c "/usr/local/probe/setup.sh" || \
     error "update_image failed"
+  sync
   success "image updated/configured."
 }
 
@@ -101,6 +104,7 @@ deliver_artifact(){
   ls -lah /build/base.img
   shasum -a 256 /build/base.img
   cp /build/base.img /output/raspberry-probe.img
+  sync
   ls -lah /output/raspberry-probe.img
   shasum -a 256 /output/raspberry-probe.img
   success "successfully delivered artifact to /output"
@@ -111,15 +115,17 @@ main(){
   reset_loop_devices || error "reset_loop_devices() failed"
   pad_image_file || error "pad_image_file() failed"
   map_disk_image_to_loop_devices || error "map_disk_image_to_loop_devices() failed"
-  repair_and_resize_disks || error "repair_and_resize_disks() failed."
+  repair_and_resize_fs || error "repair_and_resize_disks() failed."
   mount_disks_and_devices || error "mount_disks_and_devices() failed."
   disable_ld_preload
   install_payload || error "install_payload() failed."
   configure_image || error "update_image() failed."
+  mv /mnt/kernel.version /build/ || error "kernel.version file not exposed."
   enable_ld_preload || error "enable_ld_preload() failed."
   unmount_everything || error "unmount_everything() failed."
   reset_loop_devices || error "reset_loop_devices() failed."
   deliver_artifact || error "deliver_artifact() failed."
+  cat /build/kernel.version || error "kernel.version file not passed back."
   success "main(): terminating without error"
 }
 
