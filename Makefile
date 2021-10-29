@@ -1,4 +1,5 @@
 OPSYS=$(shell uname -s || windows)
+ROOT_DIR:=$(shell pwd)
 
 include Makefile.d/*.mk
 
