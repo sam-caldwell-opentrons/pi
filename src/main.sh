@@ -4,25 +4,29 @@
 #
 export PAYLOAD_DIR=/mnt/usr/local/probe
 
+success(){
+  echo "[OK]: $1"
+}
+
+message(){
+  echo "[__]: $1"
+}
+
 error(){
-  echo "Error(fatal): $1"
+  echo "[XX]: Error(fatal): $1"
   exit 1
 }
 
-download_image_file(){
-  echo "Download a base image and unzip the artifact"
-  wget https://downloads.raspberrypi.org/raspbian_lite_latest
-  unzip -p raspbian_lite_latest > base.img
-}
-
 enable_ld_preload(){
-  # revert ld.so.preload fix
+  message "revert ld.so.preload fix"
   sed -i 's/^#//g' /mnt/etc/ld.so.preload
+  success "ld preload: enabled"
 }
 
 disable_ld_preload(){
-  echo "ld.so.preload fix"
+  message "ld.so.preload fix"
   sed -i 's/^/#/g' /mnt/etc/ld.so.preload
+  success "ld preload: disabled"
 }
 
 install_payload(){
@@ -33,55 +37,66 @@ install_payload(){
 }
 
 map_disk_image_to_loop_devices(){
-  echo "Map our disks (image partitions) to loop devices"
+  message "Map our disks (image partitions) to loop devices"
   kpartx -av base.img
-  fdisk -l /dev/mapper/loop0p1
-  fdisk -l /dev/mapper/loop0p2
+  fdisk -l /dev/mapper/loop0p1 || error "/dev/mapper/loop0p1 not mapped"
+  fdisk -l /dev/mapper/loop0p2 || error "/dev/mapper/loop0p2 not mapped"
+  success "Disk image mapped to loop devices."
 }
 
 mount_disks_and_devices(){
-  echo "mount our disks"
-  mount -o rw /dev/mapper/loop0p2  /mnt
-  mount -o rw /dev/mapper/loop0p1 /mnt/boot
-  echo "mount binds"
-  mount --bind /dev /mnt/dev/
-  mount --bind /sys /mnt/sys/
-  mount --bind /proc /mnt/proc/
-  mount --bind /dev/pts /mnt/dev/pts
+  message "mount our disks"
+  mount -o rw /dev/mapper/loop0p2  /mnt || error "Failed to mount /mnt"
+  mount -o rw /dev/mapper/loop0p1 /mnt/boot || error "Failed to mount /boot"
+  success "disks mounted"
+  message "binding devices"
+  mount --bind /dev /mnt/dev/ || error "Failed to bind /dev"
+  mount --bind /sys /mnt/sys/ || error "Failed to bind /sys"
+  mount --bind /proc /mnt/proc/ || error "Failed to bind /proc"
+  mount --bind /dev/pts /mnt/dev/pts || error "Failed to bind /dev/pts"
+  success "device bind complete"
 }
 
 repair_and_resize_disks(){
-  echo "Repair and resize"
-  e2fsck -f /dev/mapper/loop0p2
-  resize2fs /dev/mapper/loop0p2
+  message "Repair and resize"
+  e2fsck -f /dev/mapper/loop0p2 || error "root partition failed repair"
+  resize2fs /dev/mapper/loop0p2 || error "root partition failed resize"
+  success "Root partition checked, repaired and resized."
 }
 
 reset_loop_devices(){
-  echo "Ensure loop devices are clear"
+  message "Ensure loop devices are clear"
   # shellcheck disable=SC2227
   find /dev/ -name "loop[0-9]" -exec losetup -d {} &> /dev/null \;
   find /dev/ -name "loop[0-9]" -exec kpartx -d {} \;
+  success "loop devices cleared."
 }
 
 unmount_everything(){
-  # unmount everything
-  umount /mnt/{dev/pts,dev,sys,proc,boot,}
+  message "unmount everything from raspberrypi image."
+  sync
+  umount /mnt/{dev/pts,dev,sys,proc,boot,tmp,var/tmp} || {
+    error "unmount failed"
+  }
+  success "everything unmounted successfully."
 }
 
 pad_image_file(){
-  echo "Pad the image file."
-  dd if=/dev/zero bs=1M count=16384 >> base.img
+  message "Pad the image file."
+  dd if=/dev/zero bs=1M count=16384 >> base.img || error "padding failed."
   fdisk -l base.img | tail -n2
+  success "padding complete"
 }
 
-update_image(){
-  echo "chroot to raspbian environment."
-  chroot /mnt /usr/local/payload/setup.sh
+configure_image(){
+  message "chroot to raspbian environment and configure things."
+  chroot /mnt /bin/bash -c "/usr/local/probe/setup.sh" || \
+    error "update_image failed"
+  success "image updated/configured."
 }
 
 main(){
-  echo "main(): starting image builder"
-  download_image_file || error "download_image_file() failed"
+  message "main(): starting image builder"
   reset_loop_devices || error "reset_loop_devices() failed"
   pad_image_file || error "pad_image_file() failed"
   map_disk_image_to_loop_devices || error "map_disk_image_to_loop_devices() failed"
@@ -89,11 +104,11 @@ main(){
   mount_disks_and_devices || error "mount_disks_and_devices() failed."
   disable_ld_preload
   install_payload || error "install_payload() failed."
-  update_image || error "update_image() failed."
+  configure_image || error "update_image() failed."
   enable_ld_preload || error "enable_ld_preload() failed."
   unmount_everything || error "unmount_everything() failed."
   reset_loop_devices || error "reset_loop_devices() failed."
-  echo "main(): terminating without error"
+  success "main(): terminating without error"
 }
 
 main

@@ -17,7 +17,6 @@ FROM ubuntu:latest AS base_image
 ARG APT_ARGS
 ENV DOCKER_ENTRYPOINT=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
-
 ## preesed tzdata, update package index, upgrade packages and install needed software
 RUN truncate -s0 /tmp/preseed.cfg; \
     echo "tzdata tzdata/Areas select Etc" >> /tmp/preseed.cfg; \
@@ -51,9 +50,16 @@ RUN apt-get install ${APT_ARGS} qemu-system-arm
 RUN apt-get install ${APT_ARGS} qemu-system-data
 RUN apt-get install ${APT_ARGS} qemu-efi-aarch64
 RUN apt-get install ${APT_ARGS} libarchive-tools
-#
-# Extend the base image to create a golang build environment
-#
+
+
+
+FROM base_image AS raspbian_base
+WORKDIR /build
+RUN wget https://downloads.raspberrypi.org/raspbian_lite_latest && \
+    unzip -p raspbian_lite_latest > base.img
+    #ToDo: Verify hash
+
+
 FROM base_image AS builder_base
 ARG APT_ARGS
 ARG GO_VERSION
@@ -98,6 +104,11 @@ RUN rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 
 RUN mkdir -p /build/scripts/
+COPY --from=raspbian_base /build/base.img /build/
 COPY src/ /build/
-RUN mkdir /output  # This is the directory where we will write the output artifact.
+
+# This is the directory where we will write the output artifact.
+RUN mkdir /output
+
+# This entrypoint will build a raspberry pi image and store it in /output
 ENTRYPOINT ["/build/main.sh"]
