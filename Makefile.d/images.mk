@@ -1,4 +1,6 @@
 .PHONY:=images
 images:
 	@echo "Make raspberry pi images"
-	docker run --privileged -it plugin-builder:local
+	docker run --privileged \
+			   -v $(CURRENT_DIR)/build:/output \
+			   -it plugin-builder:local
